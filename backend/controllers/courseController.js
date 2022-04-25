@@ -6,7 +6,29 @@ const cloudinary = require("cloudinary");
 
 // Create course -- Admin
 exports.createcourse = catchAsyncErrors(async (req, res, next) => {
-  
+  let images = [];
+
+  if (typeof req.body.images === "string") {
+    images.push(req.body.images);
+  } else {
+    images = req.body.images;
+  }
+
+  const imagesLinks = [];
+
+  for (let i = 0; i < images.length; i++) {
+    const result = await cloudinary.v2.uploader.upload(images[i], {
+      folder: "courses",
+    });
+
+    imagesLinks.push({
+      public_id: result.public_id,
+      url: result.secure_url,
+    });
+  }
+
+  req.body.images = imagesLinks;
+  req.body.user = req.user.id;
 
   const course = await course.create(req.body);
 
@@ -75,8 +97,37 @@ exports.updatecourse = catchAsyncErrors(async (req, res, next) => {
     return next(new ErrorHander("course not found", 404));
   }
 
-  
-  
+  // Images Start Here
+  let images = [];
+
+  if (typeof req.body.images === "string") {
+    images.push(req.body.images);
+  } else {
+    images = req.body.images;
+  }
+
+  if (images !== undefined) {
+    // Deleting Images From Cloudinary
+    for (let i = 0; i < course.images.length; i++) {
+      await cloudinary.v2.uploader.destroy(course.images[i].public_id);
+    }
+
+    const imagesLinks = [];
+
+    for (let i = 0; i < images.length; i++) {
+      const result = await cloudinary.v2.uploader.upload(images[i], {
+        folder: "courses",
+      });
+
+      imagesLinks.push({
+        public_id: result.public_id,
+        url: result.secure_url,
+      });
+    }
+
+    req.body.images = imagesLinks;
+  }
+
   course = await course.findByIdAndUpdate(req.params.id, req.body, {
     new: true,
     runValidators: true,
@@ -98,7 +149,10 @@ exports.deletecourse = catchAsyncErrors(async (req, res, next) => {
     return next(new ErrorHander("course not found", 404));
   }
 
-  
+  // Deleting Images From Cloudinary
+  for (let i = 0; i < course.images.length; i++) {
+    await cloudinary.v2.uploader.destroy(course.images[i].public_id);
+  }
 
   await course.remove();
 
